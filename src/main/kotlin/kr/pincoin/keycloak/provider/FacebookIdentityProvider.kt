@@ -1,7 +1,9 @@
 package kr.pincoin.keycloak.provider
 
+import com.fasterxml.jackson.databind.JsonNode
 import kr.pincoin.keycloak.config.FacebookIdentityProviderConfig
 import org.keycloak.broker.oidc.OIDCIdentityProvider
+import org.keycloak.broker.provider.BrokeredIdentityContext
 import org.keycloak.models.KeycloakSession
 
 class FacebookIdentityProvider(
@@ -16,12 +18,42 @@ class FacebookIdentityProvider(
     }
 
     init {
-        // FacebookIdentityProvider 프로퍼티에 URL 설정
         config.authorizationUrl = AUTH_URL
         config.tokenUrl = TOKEN_URL
-        config.userInfoUrl = USERINFO_URL
+        // 필드를 명시적으로 요청하도록 URL 수정
+        config.userInfoUrl = "$USERINFO_URL?fields=id,email,first_name,last_name"
 
         // 페이스북 특화 설정
         config.defaultScope = "email public_profile"
+    }
+
+    override fun extractIdentityFromProfile(
+        event: org.keycloak.events.EventBuilder?,
+        profile: JsonNode
+    ): BrokeredIdentityContext {
+        val context = super.extractIdentityFromProfile(event, profile)
+
+        // 페이스북 응답 매핑: {"id": "123", "email": "...", "first_name": "...", "last_name": "..."}
+        val id = getJsonProperty(profile, "id")
+        val email = getJsonProperty(profile, "email")
+        val firstName = getJsonProperty(profile, "first_name")
+        val lastName = getJsonProperty(profile, "last_name")
+
+        context.id = id
+        context.email = email
+        context.firstName = firstName
+        context.lastName = lastName
+        context.username = email ?: id
+
+        // 추가 속성 설정
+        context.setUserAttribute("provider", "facebook")
+        context.setUserAttribute("social_id", id ?: "")
+
+        return context
+    }
+
+    override fun getJsonProperty(jsonNode: JsonNode, name: String): String? {
+        val child = jsonNode.get(name) ?: return null
+        return if (child.isNull) null else child.asText()
     }
 }
