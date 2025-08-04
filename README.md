@@ -122,7 +122,38 @@ docker compose build keycloak && docker compose up -d keycloak
 
 # Keycloak 웹 콘솔 설정
 
-1. Admin Console에서 각 소셜 프로바이더 설정
-2. Client ID/Secret 등록
-3. 소셜 로그인 테스트
-4. 백엔드 연동 구현
+## Admin Console에서 각 소셜 프로바이더 설정
+
+### Realm 설정
+
+프로덕션용 별도 Realm 생성 권장 (예: pincoin-app)
+기본 master realm은 관리 전용으로 사용
+
+### 프로바이더별 주요 차이점
+
+각 프로바이더별로 **Add provider** → **[Provider Name] Pincoin Custom** 선택 후 아래 표를 참고하여 설정
+
+| 설정 항목              | Google                             | Facebook                           | Kakao                                                      | Naver                              |
+|--------------------|------------------------------------|------------------------------------|------------------------------------------------------------|------------------------------------|
+| **Alias**          | `google`                           | `facebook`                         | `kakao`                                                    | `naver`                            |
+| **Display Name**   | `Google`                           | `Facebook`                         | `카카오`                                                      | `네이버`                              |
+| **Enabled**        | ON                                 | ON                                 | ON                                                         | ON                                 |
+| **Client ID**      | Google Console<br/>Client ID       | Facebook Developer<br/>App ID      | Kakao Developers<br/>REST API 키                            | Naver Developers<br/>Client ID     |
+| **Client Secret**  | Google Console<br/>Client Secret   | Facebook Developer<br/>App Secret  | Kakao Developers<br/>Client Secret                         | Naver Developers<br/>Client Secret |
+| **Default Scopes** | `openid email profile`<br/>(자동 설정) | `email public_profile`<br/>(자동 설정) | `profile_nickname profile_image account_email`<br/>(자동 설정) | `name email`<br/>(자동 설정)           |
+| **Store Tokens**   | ON (선택사항)                          | ON (선택사항)                          | ON (선택사항)                                                  | ON (선택사항)                          |
+| **Trust Email**    | ✅ ON<br/>(검증된 이메일)                 | ✅ ON<br/>(검증된 이메일)                 | ❌ OFF<br/>(이메일 선택사항)                                       | ✅ ON<br/>(필수 이메일)                  |
+
+각 프로바이더 설정 완료 후 **Save** 버튼을 클릭하여 저장합니다.
+
+### Redirect URI
+
+각 프로바이더 설정 후 반드시 Redirect URI를 복사해서 각 소셜 플랫폼에 등록
+
+- 패턴: https://your-domain/realms/{realm-name}/broker/{provider-alias}/endpoint
+
+## Client ID/Secret 등록
+
+## 소셜 로그인 테스트
+
+## 백엔드 연동 구현
