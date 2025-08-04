@@ -11,9 +11,9 @@ data class RecaptchaVerifyResponse(
 
     val hostname: String? = null,
 
-    @JsonProperty("challenge_ts")
+    @param:JsonProperty("challenge_ts")
     val challengeTs: String? = null,
 
-    @JsonProperty("error-codes")
+    @param:JsonProperty("error-codes")
     val errorCodes: List<String>? = null,
 )
