@@ -1,26 +1,128 @@
-# Keycloak identity providers
+# Keycloak Identity Providers 마이그레이션 전략
 
-## 목적
+## 개요
 
-django-allauth 스키마 구조에 맞는 레거시 소셜 로그인 정보 연동
+기존 Django Allauth 기반 소셜 로그인에서 Keycloak 기반 소셜 로그인으로의 점진적 마이그레이션 전략
 
-## 소셜 로그인 비교
+## 마이그레이션 전략
 
-| 항목                    | **Google**                                         | **Naver**                                  | **Kakao**                                          | **Facebook**                                          |
-|-----------------------|----------------------------------------------------|--------------------------------------------|----------------------------------------------------|-------------------------------------------------------|
-| **Provider ID**       | `google-pincoin`                                   | `naver-pincoin`                            | `kakao-pincoin`                                    | `facebook-pincoin`                                    |
-| **Authorization URL** | `https://accounts.google.com/o/oauth2/v2/auth`     | `https://nid.naver.com/oauth2.0/authorize` | `https://kauth.kakao.com/oauth/authorize`          | `https://www.facebook.com/v18.0/dialog/oauth`         |
-| **Token URL**         | `https://oauth2.googleapis.com/token`              | `https://nid.naver.com/oauth2.0/token`     | `https://kauth.kakao.com/oauth/token`              | `https://graph.facebook.com/v18.0/oauth/access_token` |
-| **UserInfo URL**      | `https://openidconnect.googleapis.com/v1/userinfo` | `https://openapi.naver.com/v1/nid/me`      | `https://kapi.kakao.com/v2/user/me`                | `https://graph.facebook.com/v18.0/me`                 |
-| **기본 Scope**          | `openid email profile`                             | `name email`                               | `profile_nickname profile_image account_email`     | `email public_profile`                                |
-| **OAuth2/OIDC 준수도**   | ✅ OIDC 완전 준수                                       | ❌ OAuth2만 지원                               | ❌ OAuth2만 지원                                       | ❌ OAuth2만 지원                                          |
-| **사용자 ID 필드**         | `sub` (JWT 표준)                                     | `response.id`                              | `id`                                               | `id`                                                  |
-| **사용자 ID 고유성**        | 🌐 전역 고유                                           | 📱 앱별 고유                                   | 📱 앱별 고유                                           | 📱 앱별 고유                                              |
-| **토큰 타입**             | JWT (ID Token) + Opaque                            | Opaque Token                               | Opaque Token                                       | Opaque Token                                          |
-| **JWT 지원**            | ✅ ID Token은 JWT                                    | ❌ 미지원                                      | ❌ 미지원                                              | ❌ 미지원                                                 |
-| **Refresh Token**     | ✅ 지원                                               | ✅ 지원                                       | ✅ 지원                                               | ✅ 지원                                                  |
-| **토큰 검증 API**         | ✅ tokeninfo API                                    | ✅ 연동해제 API                                 | ✅ 토큰 정보 조회                                         | ✅ debug_token API                                     |
-| **응답 구조**             | 표준 OIDC Claims                                     | 네이버 래핑 구조                                  | 카카오 중첩 구조                                          | Graph API 구조                                          |
-| **주요 사용자 필드**         | `sub`, `name`, `email`, `picture`                  | `response.{id,name,email,nickname}`        | `id`, `kakao_account.email`, `properties.nickname` | `id`, `name`, `email`, `picture.data.url`             |
-| **커스터마이징 필요도**        | 🟢 최소                                              | 🔴 높음                                      | 🟡 보통                                              | 🟢 최소                                                 |
-| **주요 고려사항**           | 표준 OIDC로 즉시 사용                                     | 응답 래핑 구조 매핑                                | 중첩 응답 구조 매핑                                        | 기존 호환성 확인                                             |
+### Keycloak 서버
+
+- 레거시 Django Allauth 스키마에 소셜 데이터가 저장되어 있어도 **동기화 없이** 그냥 Keycloak 신규 가입 처리
+- 기존 데이터와의 연동은 백엔드 서버에서 처리
+
+### 백엔드 서버
+
+- 레거시 Django Allauth 스키마와 상관 없이 **신규 스키마**에 맞춰서 소셜 정보 저장
+- **이메일 기준**으로 `auth_user.keycloakId(UUID)` 동기화
+
+## 구현 로직
+
+```kotlin
+/**
+ * Keycloak을 통한 소셜 로그인 처리
+ * 점진적 마이그레이션을 위한 이메일 기반 사용자 매칭
+ */
+fun handleSocialLogin(keycloakUser: KeycloakUser) {
+    val existingUser = userRepository.findByEmail(keycloakUser.email)
+
+    if (existingUser != null && existingUser.keycloakId == null) {
+        // 기존 사용자 + 신규 Keycloak 연동
+        existingUser.keycloakId = keycloakUser.id
+        userRepository.save(existingUser)
+
+        // 새로운 소셜 연동 정보 저장
+        saveSocialAccount(existingUser, keycloakUser.socialProvider)
+
+        logger.info("기존 사용자 Keycloak 연동 완료: ${existingUser.email}")
+    } else if (existingUser == null) {
+        // 완전 신규 사용자
+        createNewUser(keycloakUser)
+
+        logger.info("신규 사용자 생성: ${keycloakUser.email}")
+    } else {
+        // 이미 Keycloak 연동된 사용자
+        updateSocialAccount(existingUser, keycloakUser.socialProvider)
+
+        logger.info("기존 Keycloak 사용자 로그인: ${existingUser.email}")
+    }
+}
+```
+
+## 주의 사항
+
+### 1. 이메일 기준 매칭의 한계
+
+동일한 이메일로 다른 소셜 프로바이더를 사용하는 경우:
+
+```
+기존: user@gmail.com -> Google 로그인 (Django Allauth)
+신규: user@gmail.com -> Facebook 로그인 (Keycloak)
+```
+
+**대응 방안:**
+
+- 첫 번째 Keycloak 로그인 시 기존 계정과 자동 연동
+- 사용자에게 계정 통합 안내 메시지 표시
+- 필요시 수동 계정 연결 기능 제공
+
+### 2. 사용자 경험 고려
+
+**잠재적 문제:**
+
+- 기존 소셜 계정 연결 정보가 사라지는 것처럼 보일 수 있음
+- 처음 Keycloak 로그인 시 "새 계정 생성" 메시지로 인한 혼란
+
+**대응 방안:**
+
+- 로그인 후 "계정이 통합되었습니다" 안내 메시지
+- 프로필 페이지에서 연동된 소셜 계정 목록 표시
+- 고객지원을 위한 문의 채널 안내
+
+# 커스텀 이미지 빌드 및 배포
+
+## `libs/keycloak-pincoin-providers-1.0.0.jar`
+
+## `Dockerfile.keycloak`
+
+```dockerfile
+# Dockerfile.keycloak
+FROM quay.io/keycloak/keycloak:26.3.1
+
+# libs 디렉토리의 모든 JAR 파일을 프로바이더로 복사
+COPY libs/*.jar /opt/keycloak/providers/
+
+# 권한 설정
+USER root
+RUN chown keycloak:keycloak /opt/keycloak/providers/*.jar
+USER keycloak
+
+# 프로바이더 빌드 (선택사항 - 성능 향상)
+RUN /opt/keycloak/bin/kc.sh build
+```
+
+## `docker-compose.yml`
+
+```yaml
+  keycloak:
+    container_name: ${PREFIX}-keycloak
+    # image: quay.io/keycloak/keycloak:26.3.1
+    build:
+      context: .
+      dockerfile: Dockerfile.keycloak
+    restart: unless-stopped
+    # 이하 생략
+```
+
+## 시작
+
+```shell
+docker compose build keycloak && docker compose up -d keycloak
+```
+
+# Keycloak 웹 콘솔 설정
+
+1. Admin Console에서 각 소셜 프로바이더 설정
+2. Client ID/Secret 등록
+3. 소셜 로그인 테스트
+4. 백엔드 연동 구현
