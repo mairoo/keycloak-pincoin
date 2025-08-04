@@ -126,12 +126,12 @@ docker compose build keycloak && docker compose up -d keycloak
 
 ### Realm 설정
 
-프로덕션용 별도 Realm 생성 권장 (예: pincoin-app)
+프로덕션용 별도 Realm 생성 권장 (예: example-realm)
 기본 master realm은 관리 전용으로 사용
 
 ### 프로바이더별 주요 차이점
 
-각 프로바이더별로 **Add provider** → **[Provider Name] Pincoin Custom** 선택 후 아래 표를 참고하여 설정
+각 프로바이더별로 **Add provider** → **[Provider Name] example Custom** 선택 후 아래 표를 참고하여 설정
 
 | 설정 항목             | Google                           | Facebook                          | Kakao                                          | Naver                              |
 |-------------------|----------------------------------|-----------------------------------|------------------------------------------------|------------------------------------|
@@ -154,14 +154,49 @@ docker compose build keycloak && docker compose up -d keycloak
 
 ## Client ID/Secret 등록
 
-### 구글
+# 소셜 로그인 설정
 
-OAuth 2.0 클라이언트 ID
+## 구글
 
-- 이름: Keycloak Test
-- 승인된 리디렉션 URI: http://localhost:8081/realms/pincoin-local-jonghwa/broker/google-pincoin/endpoint
-- 대상
-    - 사용자 유형: 외부
+### 공통 설정 단계
+
+1. **구글 클라우드 콘솔** (https://console.cloud.google.com/) 접속
+2. **프로젝트 생성 또는 선택**
+3. **API 및 서비스(APIs & Services)** → **사용자 인증 정보(Credentials)** 이동
+4. **사용자 인증 정보 만들기(CREATE CREDENTIALS)**
+    - OAuth 클라이언트 ID 선택
+    - 애플리케이션 유형(Application type): **웹 애플리케이션(Web Application)** 선택
+5. **OAuth 동의 화면** 설정
+    - 대상: **외부(External)** 선택
+
+### 환경별 상세 설정
+
+#### OAuth 클라이언트 ID 설정
+
+| 설정 항목            | 개발 환경 (localhost)                                                                   | 운영 환경 (example.com)                                                          |
+|------------------|-------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| **이름(Name)**     | `Keycloak Local Test`                                                               | `example.com Keycloak Production`                                            |
+| **승인된 리디렉션 URI** | `http://localhost:8081/realms/example-local-jonghwa/broker/google-pincoin/endpoint` | `https://keycloak.example.com/realms/example/broker/google-example/endpoint` |
+
+#### OAuth 동의 화면 - 브랜딩 설정
+
+| 설정 항목           | 개발 환경 (localhost)       | 운영 환경 (example.com)               |
+|-----------------|-------------------------|-----------------------------------|
+| **앱 이름**        | `Keycloak Local Test`   | `example.com`                     |
+| **사용자 지원 이메일**  | 본인 Gmail 주소             | 공식 지원 이메일                         |
+| **개발자 연락처 정보**  | 본인 Gmail 주소             | 개발팀 이메일                           |
+| **앱 로고**        | 비워두기                    | 회사 로고 업로드                         |
+| **애플리케이션 홈페이지** | `http://localhost:8081` | `https://www.example.com`         |
+| **개인정보처리방침 링크** | 비워두기                    | `https://www.example.com/privacy` |
+| **서비스 약관 링크**   | 비워두기                    | `https://www.example.com/terms`   |
+| **승인된 도메인**     | **완전히 비워두기**            | `example.com`<br/>`example.kr`    |
+
+#### OAuth 동의 화면 - 클라이언트 설정
+
+| 설정 항목       | 개발 환경 (localhost) | 운영 환경 (example) |
+|-------------|-------------------|-----------------|
+| **테스트 사용자** | 개발자 Gmail 계정 추가   | 내부 테스터 계정들 추가   |
+| **게시 상태**   | 테스트 모드 유지         | 프로덕션 게시 신청      |
 
 ### 네이버
 
