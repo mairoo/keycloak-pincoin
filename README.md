@@ -133,16 +133,16 @@ docker compose build keycloak && docker compose up -d keycloak
 
 각 프로바이더별로 **Add provider** → **[Provider Name] Pincoin Custom** 선택 후 아래 표를 참고하여 설정
 
-| 설정 항목              | Google                             | Facebook                           | Kakao                                                      | Naver                              |
-|--------------------|------------------------------------|------------------------------------|------------------------------------------------------------|------------------------------------|
-| **Alias**          | `google`                           | `facebook`                         | `kakao`                                                    | `naver`                            |
-| **Display Name**   | `Google`                           | `Facebook`                         | `카카오`                                                      | `네이버`                              |
-| **Enabled**        | ON                                 | ON                                 | ON                                                         | ON                                 |
-| **Client ID**      | Google Console<br/>Client ID       | Facebook Developer<br/>App ID      | Kakao Developers<br/>REST API 키                            | Naver Developers<br/>Client ID     |
-| **Client Secret**  | Google Console<br/>Client Secret   | Facebook Developer<br/>App Secret  | Kakao Developers<br/>Client Secret                         | Naver Developers<br/>Client Secret |
-| **Default Scopes** | `openid email profile`<br/>(자동 설정) | `email public_profile`<br/>(자동 설정) | `profile_nickname profile_image account_email`<br/>(자동 설정) | `name email`<br/>(자동 설정)           |
-| **Store Tokens**   | ON (선택사항)                          | ON (선택사항)                          | ON (선택사항)                                                  | ON (선택사항)                          |
-| **Trust Email**    | ✅ ON<br/>(검증된 이메일)                 | ✅ ON<br/>(검증된 이메일)                 | ❌ OFF<br/>(이메일 선택사항)                                       | ✅ ON<br/>(필수 이메일)                  |
+| 설정 항목             | Google                           | Facebook                          | Kakao                                          | Naver                              |
+|-------------------|----------------------------------|-----------------------------------|------------------------------------------------|------------------------------------|
+| **Alias**         | `google`                         | `facebook`                        | `kakao`                                        | `naver`                            |
+| **Display Name**  | `Google`                         | `Facebook`                        | `카카오`                                          | `네이버`                              |
+| **Enabled**       | ON                               | ON                                | ON                                             | ON                                 |
+| **Client ID**     | Google Console<br/>Client ID     | Facebook Developer<br/>App ID     | Kakao Developers<br/>REST API 키                | Naver Developers<br/>Client ID     |
+| **Client Secret** | Google Console<br/>Client Secret | Facebook Developer<br/>App Secret | Kakao Developers<br/>Client Secret             | Naver Developers<br/>Client Secret |
+| **Scopes**        | `openid email profile`           | `email public_profile`            | `profile_nickname profile_image account_email` | `name email`                       |
+| **Store Tokens**  | ON (선택사항)                        | ON (선택사항)                         | ON (선택사항)                                      | ON (선택사항)                          |
+| **Trust Email**   | ✅ ON<br/>(검증된 이메일)               | ✅ ON<br/>(검증된 이메일)                | ❌ OFF<br/>(이메일 선택사항)                           | ✅ ON<br/>(필수 이메일)                  |
 
 각 프로바이더 설정 완료 후 **Save** 버튼을 클릭하여 저장합니다.
 
@@ -153,6 +153,21 @@ docker compose build keycloak && docker compose up -d keycloak
 - 패턴: https://your-domain/realms/{realm-name}/broker/{provider-alias}/endpoint
 
 ## Client ID/Secret 등록
+
+### 구글
+
+OAuth 2.0 클라이언트 ID
+
+- 이름: Keycloak Test
+- 승인된 리디렉션 URI: http://localhost:8081/realms/pincoin-local-jonghwa/broker/google-pincoin/endpoint
+- 대상
+    - 사용자 유형: 외부
+
+### 네이버
+
+### 카카오
+
+### 페이스북
 
 ## 소셜 로그인 테스트
 
