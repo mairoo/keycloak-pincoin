@@ -1,2 +1,3 @@
 kr.pincoin.keycloak.factory.GoogleIdentityProviderFactory
 kr.pincoin.keycloak.factory.NaverIdentityProviderFactory
+kr.pincoin.keycloak.factory.KakaoIdentityProviderFactory
