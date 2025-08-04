@@ -24,11 +24,6 @@ dependencies {
 
     // 로깅 (SLF4J는 Keycloak이 제공하므로 compileOnly)
     compileOnly("org.slf4j:slf4j-api:2.0.9")
-
-    // 테스트 의존성
-    testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
-    testImplementation("io.mockk:mockk:1.13.8")
 }
 
 tasks.test {
@@ -41,13 +36,13 @@ kotlin {
 
 // JAR 빌드 설정
 tasks.jar {
-    archiveBaseName.set("keycloak-pincoin-providers")
+    archiveBaseName.set("keycloak-pincoin")
     archiveVersion.set(project.version.toString())
 
     // Manifest 설정
     manifest {
         attributes(
-            "Implementation-Title" to "Keycloak Korean Social Providers",
+            "Implementation-Title" to "Keycloak SPIs for Pincoin",
             "Implementation-Version" to project.version,
             "Implementation-Vendor" to "Pincoin",
         )

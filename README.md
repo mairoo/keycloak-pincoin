@@ -351,3 +351,5 @@ docker compose build keycloak && docker compose up -d keycloak
 - Meta Business Manager를 통한 도메인 등록 권장
 
 ## 백엔드 연동 구현
+
+# reCAPTCHA 지원 : Authentication flow에 추가
