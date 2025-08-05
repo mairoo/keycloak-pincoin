@@ -67,21 +67,26 @@ class RecaptchaAuthenticatorFactory : AuthenticatorFactory, ConfigurableAuthenti
     /**
      * Authenticator 인스턴스 생성
      */
-    override fun create(session: KeycloakSession): Authenticator {
-        return RecaptchaAuthenticator()
-    }
+    override fun create(
+        session: KeycloakSession,
+    ): Authenticator =
+        RecaptchaAuthenticator()
 
     /**
      * 팩토리 초기화
      */
-    override fun init(config: Config.Scope) {
+    override fun init(
+        config: Config.Scope,
+    ) {
         // 필요시 초기화 로직 추가
     }
 
     /**
      * 팩토리 종료 시 정리
      */
-    override fun postInit(factory: KeycloakSessionFactory) {
+    override fun postInit(
+        factory: KeycloakSessionFactory,
+    ) {
         // 필요시 종료 로직 추가
     }
 
@@ -95,46 +100,60 @@ class RecaptchaAuthenticatorFactory : AuthenticatorFactory, ConfigurableAuthenti
     /**
      * Provider ID 반환
      */
-    override fun getId(): String = PROVIDER_ID
+    override fun getId(
+    ): String =
+        PROVIDER_ID
 
     /**
      * 관리자 콘솔에서 표시될 이름
      */
-    override fun getDisplayType(): String = DISPLAY_TYPE
+    override fun getDisplayType(
+    ): String =
+        DISPLAY_TYPE
 
     /**
      * 참조 카테고리
      */
-    override fun getReferenceCategory(): String = REFERENCE_CATEGORY
+    override fun getReferenceCategory(
+    ): String =
+        REFERENCE_CATEGORY
 
     /**
      * 사용자가 필요한지 여부
      */
-    override fun isUserSetupAllowed(): Boolean = false
+    override fun isUserSetupAllowed(
+    ): Boolean =
+        false
 
     /**
      * 설정 가능한지 여부
      */
-    override fun isConfigurable(): Boolean = true
+    override fun isConfigurable(
+    ): Boolean =
+        true
 
     /**
      * 실행 요구사항 목록
      */
-    override fun getRequirementChoices(): Array<AuthenticationExecutionModel.Requirement> {
-        return arrayOf(
+    override fun getRequirementChoices(
+    ): Array<AuthenticationExecutionModel.Requirement> =
+        arrayOf(
             AuthenticationExecutionModel.Requirement.REQUIRED,
             AuthenticationExecutionModel.Requirement.ALTERNATIVE,
-            AuthenticationExecutionModel.Requirement.DISABLED
+            AuthenticationExecutionModel.Requirement.DISABLED,
         )
-    }
 
     /**
      * 관리자 콘솔에서 표시될 도움말 텍스트
      */
-    override fun getHelpText(): String = HELP_TEXT
+    override fun getHelpText(
+    ): String =
+        HELP_TEXT
 
     /**
      * 설정 속성 목록
      */
-    override fun getConfigProperties(): List<ProviderConfigProperty> = configProperties
+    override fun getConfigProperties(
+    ): List<ProviderConfigProperty> =
+        configProperties
 }
