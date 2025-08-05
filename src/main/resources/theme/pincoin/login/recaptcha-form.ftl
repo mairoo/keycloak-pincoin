@@ -2,7 +2,7 @@
 
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('recaptcha'); section>
     <#if section = "header">
-        ${msg("recaptcha.title","보안 검증")}
+        ${msg("recaptcha.title","안전한 로그인을 위한 확인")}
     <#elseif section = "form">
 
         <form id="kc-recaptcha-form" action="${url.loginAction}" method="post">
@@ -50,7 +50,7 @@
                                 .then(function (token) {
                                     document.getElementById('g-recaptcha-response').value = token;
                                     document.getElementById('kc-login').disabled = false;
-                                    updateStatus('✅ 준비 완료');
+                                    updateStatus('✅ 보안 검증 완료');
                                 })
                                 .catch(function (error) {
                                     updateStatus('❌ 토큰 생성 실패');
@@ -62,7 +62,7 @@
                                 sitekey: siteKey,
                                 callback: function (response) {
                                     document.getElementById('kc-login').disabled = false;
-                                    updateStatus('✅ 검증 완료');
+                                    updateStatus('✅ 보안 검증 완료');
                                 },
                                 'error-callback': function () {
                                     updateStatus('❌ 검증 오류 발생');
