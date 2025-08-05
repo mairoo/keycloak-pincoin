@@ -352,4 +352,12 @@ docker compose build keycloak && docker compose up -d keycloak
 
 ## 백엔드 연동 구현
 
-# reCAPTCHA 지원 : Authentication flow에 추가
+# reCAPTCHA 지원: Authentication flow에 추가
+
+- Realm settings > Security defenses > Content-Security-Policy:
+  `frame-src 'self' https://www.google.com https://recaptcha.google.com https://www.gstatic.com https://*.google.com; frame-ancestors 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com https://*.google.com; connect-src 'self' https://www.google.com https://*.google.com; style-src 'self' 'unsafe-inline';`
+  (기본값: `frame-src 'self'; frame-ancestors 'self'; object-src 'none';`)
+- Realm settings > Themes > Login Theme: Pincoin
+- Authentication> Browser (built-in) flow 복제
+    - Username Password Form(step) 아래에 reCAPTCHA(step) 추가
+    - Bind flow 드롭다운: Browser flow 선택
