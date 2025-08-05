@@ -17,11 +17,6 @@ dependencies {
     compileOnly("org.keycloak:keycloak-server-spi:${keycloakVersion}")
     compileOnly("org.keycloak:keycloak-services:${keycloakVersion}")
 
-    // JSON 처리
-    compileOnly("com.fasterxml.jackson.core:jackson-core:2.16.1")
-    compileOnly("com.fasterxml.jackson.core:jackson-databind:2.16.1")
-    compileOnly("com.fasterxml.jackson.module:jackson-module-kotlin:2.16.1")
-
     // 로깅 (SLF4J는 Keycloak이 제공하므로 compileOnly)
     compileOnly("org.slf4j:slf4j-api:2.0.9")
 }
