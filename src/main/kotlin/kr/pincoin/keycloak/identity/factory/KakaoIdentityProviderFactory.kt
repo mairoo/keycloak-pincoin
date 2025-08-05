@@ -1,7 +1,7 @@
-package kr.pincoin.keycloak.factory
+package kr.pincoin.keycloak.identity.factory
 
-import kr.pincoin.keycloak.config.KakaoIdentityProviderConfig
-import kr.pincoin.keycloak.provider.KakaoIdentityProvider
+import kr.pincoin.keycloak.identity.config.KakaoIdentityProviderConfig
+import kr.pincoin.keycloak.identity.provider.KakaoIdentityProvider
 import org.keycloak.broker.provider.AbstractIdentityProviderFactory
 import org.keycloak.models.IdentityProviderModel
 import org.keycloak.models.KeycloakSession

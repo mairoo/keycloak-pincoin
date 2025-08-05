@@ -1,7 +1,7 @@
-package kr.pincoin.keycloak.provider
+package kr.pincoin.keycloak.identity.provider
 
 import com.fasterxml.jackson.databind.JsonNode
-import kr.pincoin.keycloak.config.KakaoIdentityProviderConfig
+import kr.pincoin.keycloak.identity.config.KakaoIdentityProviderConfig
 import org.keycloak.broker.oidc.OIDCIdentityProvider
 import org.keycloak.broker.provider.BrokeredIdentityContext
 import org.keycloak.models.KeycloakSession

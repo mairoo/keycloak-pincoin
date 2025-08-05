@@ -1,4 +1,4 @@
-package kr.pincoin.keycloak.recaptcha
+package kr.pincoin.keycloak.authentication.recaptcha
 
 import org.keycloak.Config
 import org.keycloak.authentication.Authenticator

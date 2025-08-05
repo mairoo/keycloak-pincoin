@@ -1,1 +1,1 @@
-kr.pincoin.keycloak.recaptcha.RecaptchaAuthenticatorFactory
+kr.pincoin.keycloak.authentication.recaptcha.RecaptchaAuthenticatorFactory

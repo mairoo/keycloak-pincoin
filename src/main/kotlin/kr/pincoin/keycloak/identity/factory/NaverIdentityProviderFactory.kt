@@ -1,7 +1,7 @@
-package kr.pincoin.keycloak.factory
+package kr.pincoin.keycloak.identity.factory
 
-import kr.pincoin.keycloak.config.NaverIdentityProviderConfig
-import kr.pincoin.keycloak.provider.NaverIdentityProvider
+import kr.pincoin.keycloak.identity.config.NaverIdentityProviderConfig
+import kr.pincoin.keycloak.identity.provider.NaverIdentityProvider
 import org.keycloak.broker.provider.AbstractIdentityProviderFactory
 import org.keycloak.models.IdentityProviderModel
 import org.keycloak.models.KeycloakSession

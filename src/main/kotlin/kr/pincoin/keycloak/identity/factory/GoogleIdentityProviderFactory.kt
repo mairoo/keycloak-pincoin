@@ -1,7 +1,7 @@
-package kr.pincoin.keycloak.factory
+package kr.pincoin.keycloak.identity.factory
 
-import kr.pincoin.keycloak.config.GoogleIdentityProviderConfig
-import kr.pincoin.keycloak.provider.GoogleIdentityProvider
+import kr.pincoin.keycloak.identity.config.GoogleIdentityProviderConfig
+import kr.pincoin.keycloak.identity.provider.GoogleIdentityProvider
 import org.keycloak.broker.provider.AbstractIdentityProviderFactory
 import org.keycloak.models.IdentityProviderModel
 import org.keycloak.models.KeycloakSession

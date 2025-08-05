@@ -1,7 +1,7 @@
-package kr.pincoin.keycloak.factory
+package kr.pincoin.keycloak.identity.factory
 
-import kr.pincoin.keycloak.config.FacebookIdentityProviderConfig
-import kr.pincoin.keycloak.provider.FacebookIdentityProvider
+import kr.pincoin.keycloak.identity.config.FacebookIdentityProviderConfig
+import kr.pincoin.keycloak.identity.provider.FacebookIdentityProvider
 import org.keycloak.broker.provider.AbstractIdentityProviderFactory
 import org.keycloak.models.IdentityProviderModel
 import org.keycloak.models.KeycloakSession

@@ -1,4 +1,4 @@
-kr.pincoin.keycloak.factory.GoogleIdentityProviderFactory
-kr.pincoin.keycloak.factory.FacebookIdentityProviderFactory
-kr.pincoin.keycloak.factory.NaverIdentityProviderFactory
-kr.pincoin.keycloak.factory.KakaoIdentityProviderFactory
+kr.pincoin.keycloak.identity.factory.GoogleIdentityProviderFactory
+kr.pincoin.keycloak.identity.factory.FacebookIdentityProviderFactory
+kr.pincoin.keycloak.identity.factory.NaverIdentityProviderFactory
+kr.pincoin.keycloak.identity.factory.KakaoIdentityProviderFactory

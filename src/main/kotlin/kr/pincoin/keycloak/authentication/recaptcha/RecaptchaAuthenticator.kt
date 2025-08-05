@@ -1,4 +1,4 @@
-package kr.pincoin.keycloak.recaptcha
+package kr.pincoin.keycloak.authentication.recaptcha
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.keycloak.authentication.AuthenticationFlowContext
