@@ -14,7 +14,7 @@ class RecaptchaAuthenticatorFactory : AuthenticatorFactory, ConfigurableAuthenti
 
     companion object {
         const val PROVIDER_ID = "recaptcha-authenticator"
-        const val DISPLAY_TYPE = "reCAPTCHA"
+        const val DISPLAY_TYPE = "Google reCAPTCHA"
         const val HELP_TEXT = "Google reCAPTCHA v2/v3를 사용한 봇 방지 검증"
         const val REFERENCE_CATEGORY = "captcha"
     }
