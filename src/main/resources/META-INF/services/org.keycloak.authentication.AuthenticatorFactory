@@ -1,1 +1,2 @@
 kr.pincoin.keycloak.authentication.recaptcha.RecaptchaAuthenticatorFactory
+kr.pincoin.keycloak.authentication.ratelimit.RateLimitAuthenticatorFactory

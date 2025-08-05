@@ -10,12 +10,15 @@ repositories {
 }
 
 val keycloakVersion = "26.3.1"
+val redisVersion = "6.0.0"
 
 dependencies {
     // Keycloak SPI 의존성 (compileOnly - 런타임에 Keycloak이 제공)
     compileOnly("org.keycloak:keycloak-core:${keycloakVersion}")
     compileOnly("org.keycloak:keycloak-server-spi:${keycloakVersion}")
     compileOnly("org.keycloak:keycloak-services:${keycloakVersion}")
+
+    implementation("redis.clients:jedis:${redisVersion}")
 
     // 로깅 (SLF4J는 Keycloak이 제공하므로 compileOnly)
     compileOnly("org.slf4j:slf4j-api:2.0.9")

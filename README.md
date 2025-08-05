@@ -352,7 +352,9 @@ docker compose build keycloak && docker compose up -d keycloak
 
 ## 백엔드 연동 구현
 
-# reCAPTCHA 지원: Authentication flow에 추가
+# Authenticator
+
+## reCAPTCHA 지원: Authentication flow에 추가
 
 - Realm settings > Security defenses > Content-Security-Policy:
   `frame-src 'self' https://www.google.com https://recaptcha.google.com https://www.gstatic.com https://*.google.com; frame-ancestors 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google.com https://www.gstatic.com https://*.google.com; connect-src 'self' https://www.google.com https://*.google.com; style-src 'self' 'unsafe-inline';`
@@ -361,3 +363,19 @@ docker compose build keycloak && docker compose up -d keycloak
 - Authentication> Browser (built-in) flow 복제
     - Username Password Form(step) 아래에 reCAPTCHA(step) 추가
     - Bind flow 드롭다운: Browser flow 선택
+
+## Rate Limit 구현
+
+```
+Redis Host: example-redis (도커 이름 또는 호스트 이름)
+Redis Port: 6379  
+Redis Password: (비어둠 또는 패스워드)
+Redis Database: 0
+
+IP 제한 횟수: 100
+IP 제한 시간(초): 3600
+사용자 제한 횟수: 5  
+사용자 제한 시간(초): 900
+조합 제한 횟수: 10
+조합 제한 시간(초): 300
+```
