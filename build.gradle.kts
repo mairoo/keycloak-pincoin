@@ -11,17 +11,21 @@ repositories {
 
 val keycloakVersion = "26.3.1"
 val redisVersion = "6.0.0"
+val slf4jVersion = "2.0.17"
 
 dependencies {
-    // Keycloak SPI 의존성 (compileOnly - 런타임에 Keycloak이 제공)
+    // 런타임에 keyclaok이 제공하는 의존성 compileOnly
     compileOnly("org.keycloak:keycloak-core:${keycloakVersion}")
     compileOnly("org.keycloak:keycloak-server-spi:${keycloakVersion}")
     compileOnly("org.keycloak:keycloak-services:${keycloakVersion}")
 
-    implementation("redis.clients:jedis:${redisVersion}")
+    // SLF4J - 최신 버전 사용하되 JAR에 포함시키지 않음
+    compileOnly("org.slf4j:slf4j-api:${slf4jVersion}")
 
-    // 로깅 (SLF4J는 Keycloak이 제공하므로 compileOnly)
-    compileOnly("org.slf4j:slf4j-api:2.0.9")
+    // Jedis - SLF4J 의존성은 제외하고 사용
+    implementation("redis.clients:jedis:${redisVersion}") {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
 }
 
 tasks.test {
