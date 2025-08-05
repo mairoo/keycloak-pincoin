@@ -168,6 +168,14 @@ class RateLimitAuthenticator : Authenticator {
         val newCount = jedis.incr(redisKey)
         if (newCount == 1L) {
             jedis.expire(redisKey, windowSeconds.toLong())
+        } else {
+            // TTL 안전장치: jedis.expire() 호출이 실패하면
+            // Redis에 TTL 없는 키가 남음 (ttl = -1)
+            // 그 키는 영구히 존재하게 되어 사용자가 영원히 차단될 수 있음
+            val ttl = jedis.ttl(redisKey)
+            if (ttl == -1L) { // TTL이 설정되지 않은 경우
+                jedis.expire(redisKey, windowSeconds.toLong())
+            }
         }
     }
 
@@ -186,7 +194,21 @@ class RateLimitAuthenticator : Authenticator {
     }
 
     private fun getUsername(context: AuthenticationFlowContext): String? {
-        return context.user?.username ?: context.authenticationSession.getAuthNote("ATTEMPTED_USERNAME")
+        // 1차 시도: 현재 인증된 사용자 (재인증, 패스워드 변경 등의 경우)
+        context.user?.username?.let { return it }
+
+        // 2차 시도: 이전 인증 단계에서 설정된 시도 사용자명 (일반적인 경우)
+        context.authenticationSession.getAuthNote("ATTEMPTED_USERNAME")?.let { return it }
+
+        // 3차 시도: HTTP 폼 파라미터에서 직접 추출 (폴백)
+        try {
+            val decodedFormParameters = context.httpRequest.decodedFormParameters
+            decodedFormParameters?.getFirst("username")?.let { return it }
+        } catch (_: Exception) {
+            // 폼 파라미터 읽기 실패 시 무시하고 계속 진행
+        }
+
+        return null
     }
 
     private fun buildRedisKey(type: String, realm: String, identifier: String): String {
