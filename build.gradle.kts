@@ -36,7 +36,7 @@ kotlin {
 
 // JAR 빌드 설정
 tasks.jar {
-    archiveBaseName.set("keycloak-pincoin")
+    archiveBaseName.set("keycloak-spi-pincoin")
     archiveVersion.set(project.version.toString())
 
     // Manifest 설정
