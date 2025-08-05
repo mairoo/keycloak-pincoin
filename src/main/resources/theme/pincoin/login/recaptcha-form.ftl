@@ -2,7 +2,7 @@
 
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('recaptcha'); section>
     <#if section = "header">
-        ${msg("recaptcha.title","안전한 로그인을 위한 확인")}
+        안전한 로그인을 위한 확인
     <#elseif section = "form">
 
         <form id="kc-recaptcha-form" action="${url.loginAction}" method="post">
@@ -14,7 +14,8 @@
                 <div id="status">reCAPTCHA v2 로딩 중...</div>
             </#if>
 
-            <input name="login" id="kc-login" type="submit" value="확인" disabled/>
+            <input name="login" id="kc-login" type="submit" value="확인" disabled
+                   style="width: 100%; padding: 12px; margin-top: 15px;"/>
         </form>
 
         <script>
