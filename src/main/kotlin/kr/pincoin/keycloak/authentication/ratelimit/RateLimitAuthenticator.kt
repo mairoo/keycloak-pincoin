@@ -5,6 +5,7 @@ import org.keycloak.authentication.Authenticator
 import org.keycloak.models.KeycloakSession
 import org.keycloak.models.RealmModel
 import org.keycloak.models.UserModel
+import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
 import redis.clients.jedis.JedisPoolConfig
 import java.security.MessageDigest
@@ -44,7 +45,7 @@ class RateLimitAuthenticator : Authenticator {
     override fun authenticate(context: AuthenticationFlowContext) {
         try {
             val clientIP = getClientIP(context)
-            val username = context.user?.username ?: context.authenticationSession.getAuthNote("ATTEMPTED_USERNAME")
+            val username = getUsername(context)
 
             if (clientIP == null) {
                 context.success()
@@ -53,23 +54,23 @@ class RateLimitAuthenticator : Authenticator {
 
             initializeRedisPool(context)
 
-            if (isRateLimited(context, clientIP, username)) {
-                handleRateLimit(context)
+            // Rate Limit 체크
+            if (isBlocked(context, clientIP, username)) {
+                handleBlocked(context)
                 return
             }
 
-            // Rate limit 통과 시 계속 진행
+            // 통과 시 카운터 증가
+            incrementAllCounters(context, clientIP, username)
             context.success()
 
         } catch (e: Exception) {
-            // Redis 연결 실패 등의 경우 통과 처리
             println("Rate Limit Authenticator 오류: ${e.message}")
             context.success()
         }
     }
 
     override fun action(context: AuthenticationFlowContext) {
-        // 이 Authenticator는 action을 사용하지 않음
         context.success()
     }
 
@@ -98,93 +99,94 @@ class RateLimitAuthenticator : Authenticator {
         }
     }
 
-    private fun isRateLimited(context: AuthenticationFlowContext, clientIP: String, username: String?): Boolean {
+    private fun isBlocked(context: AuthenticationFlowContext, clientIP: String, username: String?): Boolean {
         val realmName = context.realm.name
 
         // L1: IP 기준 체크
-        if (checkRateLimit(
-                context,
-                buildRedisKey(KEY_TYPE_IP, realmName, clientIP),
-                getIPLimit(context),
-                getIPWindow(context)
-            )
-        ) {
+        if (isCounterExceeded(buildRedisKey(KEY_TYPE_IP, realmName, clientIP), getIPLimit(context))) {
             println("IP Rate Limit 초과: $clientIP")
             return true
         }
 
-        // L2: 사용자 기준 체크 (username이 있는 경우만)
-        if (username != null && checkRateLimit(
-                context,
-                buildRedisKey(KEY_TYPE_USER, realmName, username),
-                getUserLimit(context),
-                getUserWindow(context)
-            )
-        ) {
-            println("사용자 Rate Limit 초과: $username")
-            return true
+        // L2: 사용자 기준 체크
+        if (username != null) {
+            if (isCounterExceeded(buildRedisKey(KEY_TYPE_USER, realmName, username), getUserLimit(context))) {
+                println("사용자 Rate Limit 초과: $username")
+                return true
+            }
         }
 
-        // L3: 조합 기준 체크 (username이 있는 경우만)
-        if (username != null && checkRateLimit(
-                context,
-                buildRedisKey(KEY_TYPE_COMBINED, realmName, "$clientIP:${hashUsername(username)}"),
-                getCombinedLimit(context),
-                getCombinedWindow(context)
-            )
-        ) {
-            println("조합 Rate Limit 초과: $clientIP + $username")
-            return true
+        // L3: 조합 기준 체크
+        if (username != null) {
+            val combinedKey = buildRedisKey(KEY_TYPE_COMBINED, realmName, "$clientIP:${hashUsername(username)}")
+            if (isCounterExceeded(combinedKey, getCombinedLimit(context))) {
+                println("조합 Rate Limit 초과: $clientIP + $username")
+                return true
+            }
         }
 
         return false
     }
 
-    private fun checkRateLimit(
-        context: AuthenticationFlowContext,
-        redisKey: String,
-        limit: Int,
-        windowSeconds: Int
-    ): Boolean {
+    private fun isCounterExceeded(redisKey: String, limit: Int): Boolean {
         return try {
             jedisPool?.resource?.use { jedis ->
                 val current = jedis.get(redisKey)?.toIntOrNull() ?: 0
-
-                if (current >= limit) {
-                    true
-                } else {
-                    // 카운터 증가
-                    val newCount = jedis.incr(redisKey)
-                    if (newCount == 1L) {
-                        // 첫 번째 시도인 경우 TTL 설정
-                        jedis.expire(redisKey, windowSeconds.toLong())
-                    }
-                    false
-                }
+                current >= limit
             } ?: false
-
         } catch (e: Exception) {
-            println("Redis Rate Limit 체크 오류: ${e.message}")
+            println("Redis 카운터 확인 오류: ${e.message}")
             false
         }
     }
 
-    private fun handleRateLimit(context: AuthenticationFlowContext) {
-        // Rate Limit 차단 시 인증 실패로 처리
-        context.getEvent().error(org.keycloak.events.Errors.USER_TEMPORARILY_DISABLED)
+    private fun incrementAllCounters(context: AuthenticationFlowContext, clientIP: String, username: String?) {
+        try {
+            val realmName = context.realm.name
 
-        // AuthenticationFlowError로 실패 처리
-        context.failure(org.keycloak.authentication.AuthenticationFlowError.INVALID_CREDENTIALS)
+            jedisPool?.resource?.use { jedis ->
+                // IP 카운터 증가
+                incrementSingleCounter(jedis, buildRedisKey(KEY_TYPE_IP, realmName, clientIP), getIPWindow(context))
+
+                // 사용자 관련 카운터 증가
+                if (username != null) {
+                    incrementSingleCounter(
+                        jedis,
+                        buildRedisKey(KEY_TYPE_USER, realmName, username),
+                        getUserWindow(context)
+                    )
+                    val combinedKey = buildRedisKey(KEY_TYPE_COMBINED, realmName, "$clientIP:${hashUsername(username)}")
+                    incrementSingleCounter(jedis, combinedKey, getCombinedWindow(context))
+                }
+            }
+        } catch (e: Exception) {
+            println("Rate Limit 카운터 증가 오류: ${e.message}")
+        }
+    }
+
+    private fun incrementSingleCounter(jedis: Jedis, redisKey: String, windowSeconds: Int) {
+        val newCount = jedis.incr(redisKey)
+        if (newCount == 1L) {
+            jedis.expire(redisKey, windowSeconds.toLong())
+        }
+    }
+
+    private fun handleBlocked(context: AuthenticationFlowContext) {
+        context.getEvent().error(org.keycloak.events.Errors.USER_TEMPORARILY_DISABLED)
+        context.failure(org.keycloak.authentication.AuthenticationFlowError.INVALID_USER)
     }
 
     private fun getClientIP(context: AuthenticationFlowContext): String? {
         val request = context.httpRequest
 
-        // 프록시를 통한 접속인 경우 실제 IP 확인
         return request.getHttpHeaders().getHeaderString("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
             ?: request.getHttpHeaders().getHeaderString("X-Real-IP")
             ?: request.getHttpHeaders().getHeaderString("X-Forwarded-Host")
             ?: context.connection.remoteAddr
+    }
+
+    private fun getUsername(context: AuthenticationFlowContext): String? {
+        return context.user?.username ?: context.authenticationSession.getAuthNote("ATTEMPTED_USERNAME")
     }
 
     private fun buildRedisKey(type: String, realm: String, identifier: String): String {
