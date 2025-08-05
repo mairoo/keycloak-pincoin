@@ -7,7 +7,6 @@ import org.keycloak.authentication.Authenticator
 import org.keycloak.models.KeycloakSession
 import org.keycloak.models.RealmModel
 import org.keycloak.models.UserModel
-import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
 import redis.clients.jedis.JedisPoolConfig
 import java.security.MessageDigest
@@ -20,21 +19,30 @@ class RateLimitAuthenticator : Authenticator {
         const val REDIS_PASSWORD_CONFIG = "redis.password"
         const val REDIS_DATABASE_CONFIG = "redis.database"
 
-        // Rate Limit 설정
-        const val IP_LIMIT_CONFIG = "ip.limit"
-        const val IP_WINDOW_CONFIG = "ip.window"
-        const val USER_LIMIT_CONFIG = "user.limit"
-        const val USER_WINDOW_CONFIG = "user.window"
-        const val COMBINED_LIMIT_CONFIG = "combined.limit"
-        const val COMBINED_WINDOW_CONFIG = "combined.window"
+        // Token Bucket 설정 추가
+        const val IP_CAPACITY_CONFIG = "ip.capacity"
+        const val IP_REFILL_RATE_CONFIG = "ip.refill.rate"
+        const val USER_CAPACITY_CONFIG = "user.capacity"
+        const val USER_REFILL_RATE_CONFIG = "user.refill.rate"
+        const val COMBINED_CAPACITY_CONFIG = "combined.capacity"
+        const val COMBINED_REFILL_RATE_CONFIG = "combined.refill.rate"
 
-        // 기본값
-        const val DEFAULT_IP_LIMIT = 100
-        const val DEFAULT_IP_WINDOW = 3600 // 1시간
-        const val DEFAULT_USER_LIMIT = 5
-        const val DEFAULT_USER_WINDOW = 900 // 15분
-        const val DEFAULT_COMBINED_LIMIT = 10
-        const val DEFAULT_COMBINED_WINDOW = 300 // 5분
+        // Token Bucket 기본값
+        const val DEFAULT_IP_CAPACITY = 30
+        const val DEFAULT_IP_REFILL_RATE = 1.0 // 초당 1개
+        const val DEFAULT_USER_CAPACITY = 5
+        const val DEFAULT_USER_REFILL_RATE = 0.0167 // 분당 1개
+        const val DEFAULT_COMBINED_CAPACITY = 3
+        const val DEFAULT_COMBINED_REFILL_RATE = 0.0033 // 5분당 1개
+
+        // TTL 설정 (정리용)
+        const val IP_TTL_CONFIG = "ip.ttl"
+        const val USER_TTL_CONFIG = "user.ttl"
+        const val COMBINED_TTL_CONFIG = "combined.ttl"
+
+        const val DEFAULT_IP_TTL = 3600 // 1시간
+        const val DEFAULT_USER_TTL = 900 // 15분
+        const val DEFAULT_COMBINED_TTL = 300 // 5분
 
         // Redis 키 타입
         const val KEY_TYPE_IP = "i"
@@ -44,9 +52,7 @@ class RateLimitAuthenticator : Authenticator {
 
     private var jedisPool: JedisPool? = null
 
-    override fun authenticate(
-        context: AuthenticationFlowContext,
-    ) {
+    override fun authenticate(context: AuthenticationFlowContext) {
         try {
             val clientIP = getClientIP(context)
             val username = getUsername(context)
@@ -58,14 +64,13 @@ class RateLimitAuthenticator : Authenticator {
 
             initializeRedisPool(context)
 
-            // Rate Limit 체크
+            // Token Bucket으로 Rate Limit 체크 (카운터 증가도 함께 처리됨)
             if (isBlocked(context, clientIP, username)) {
                 handleBlocked(context)
                 return
             }
 
-            // 통과 시 카운터 증가
-            incrementAllCounters(context, clientIP, username)
+            // Token Bucket에서 이미 토큰을 소모했으므로 별도 카운터 증가 불필요
             context.success()
 
         } catch (e: Exception) {
@@ -109,29 +114,44 @@ class RateLimitAuthenticator : Authenticator {
     private fun isBlocked(
         context: AuthenticationFlowContext,
         clientIP: String,
-        username: String?,
+        username: String?
     ): Boolean {
         val realmName = context.realm.name
 
-        // L1: IP 기준 체크
-        if (isCounterExceeded(buildRedisKey(KEY_TYPE_IP, realmName, clientIP), getIPLimit(context))) {
-            println("IP Rate Limit 초과: $clientIP")
+        // L1: IP 기준 (DDoS 방어)
+        if (isTokenBucketExceeded(
+                buildRedisKey(KEY_TYPE_IP, realmName, clientIP),
+                getIPCapacity(context),
+                getIPRefillRate(context),
+                getIPTTL(context)
+            )
+        ) {
             return true
         }
 
-        // L2: 사용자 기준 체크
+        // L2: 사용자 기준 (brute force 방어)
         if (username != null) {
-            if (isCounterExceeded(buildRedisKey(KEY_TYPE_USER, realmName, username), getUserLimit(context))) {
-                println("사용자 Rate Limit 초과: $username")
+            if (isTokenBucketExceeded(
+                    buildRedisKey(KEY_TYPE_USER, realmName, username),
+                    getUserCapacity(context),
+                    getUserRefillRate(context),
+                    getUserTTL(context)
+                )
+            ) {
                 return true
             }
         }
 
-        // L3: 조합 기준 체크
+        // L3: 조합 기준 (targeted attack 방어)
         if (username != null) {
             val combinedKey = buildRedisKey(KEY_TYPE_COMBINED, realmName, "$clientIP:${hashUsername(username)}")
-            if (isCounterExceeded(combinedKey, getCombinedLimit(context))) {
-                println("조합 Rate Limit 초과: $clientIP + $username")
+            if (isTokenBucketExceeded(
+                    combinedKey,
+                    getCombinedCapacity(context),
+                    getCombinedRefillRate(context),
+                    getCombinedTTL(context)
+                )
+            ) {
                 return true
             }
         }
@@ -139,63 +159,103 @@ class RateLimitAuthenticator : Authenticator {
         return false
     }
 
-    private fun isCounterExceeded(
+
+    private fun isTokenBucketExceeded(
         redisKey: String,
-        limit: Int,
-    ): Boolean =
-        try {
+        capacity: Int,
+        refillRate: Double,
+        windowSeconds: Int
+    ): Boolean {
+        return try {
             jedisPool?.resource?.use { jedis ->
-                val current = jedis.get(redisKey)?.toIntOrNull() ?: 0
-                current >= limit
+                val now = System.currentTimeMillis()
+
+                val luaScript = """
+            local key = KEYS[1]
+            local capacity = tonumber(ARGV[1])
+            local refill_rate = tonumber(ARGV[2])
+            local now = tonumber(ARGV[3])
+            local window = tonumber(ARGV[4])
+            
+            -- 현재 버킷 상태 조회
+            local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
+            local tokens = tonumber(bucket[1])
+            local last_refill = tonumber(bucket[2])
+            
+            -- 초기화 (첫 요청)
+            if tokens == nil then
+                tokens = capacity
+                last_refill = now
+            end
+            
+            -- 토큰 보충 계산
+            local elapsed_seconds = (now - last_refill) / 1000
+            tokens = math.min(capacity, tokens + elapsed_seconds * refill_rate)
+            
+            -- 토큰 사용 가능한지 확인
+            if tokens >= 1 then
+                -- 토큰 소모하고 허용
+                tokens = tokens - 1
+                redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+                redis.call('EXPIRE', key, window + 300)
+                return {0, math.floor(tokens)}
+            else
+                -- 토큰 부족으로 차단
+                redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+                redis.call('EXPIRE', key, window + 300)
+                local wait_time = math.ceil((1 - tokens) / refill_rate)
+                return {1, wait_time}
+            end
+        """.trimIndent()
+
+                val rawResult = jedis.eval(
+                    luaScript,
+                    1,
+                    redisKey,
+                    capacity.toString(),
+                    refillRate.toString(),
+                    now.toString(),
+                    windowSeconds.toString()
+                )
+
+                val result = when (rawResult) {
+                    is List<*> -> {
+                        // List의 각 요소를 안전하게 Long으로 변환
+                        rawResult.mapNotNull {
+                            when (it) {
+                                is Number -> it.toLong()
+                                is String -> it.toLongOrNull()
+                                else -> null
+                            }
+                        }
+                    }
+
+                    else -> {
+                        println("Unexpected Redis result type: ${rawResult?.javaClass}")
+                        return false
+                    }
+                }
+
+                // 결과 검증
+                if (result.size < 2) {
+                    println("Invalid Redis result size: ${result.size}")
+                    return false
+                }
+
+                val isBlocked = result[0] == 1L
+                val info = result[1]
+
+                if (isBlocked) {
+                    println("Token Bucket 차단: $redisKey, 대기시간: ${info}초")
+                } else {
+                    println("Token Bucket 허용: $redisKey, 남은토큰: $info")
+                }
+
+                isBlocked
             } ?: false
         } catch (e: Exception) {
-            println("Redis 카운터 확인 오류: ${e.message}")
-            false
-        }
-
-    private fun incrementAllCounters(
-        context: AuthenticationFlowContext,
-        clientIP: String,
-        username: String?,
-    ) =
-        try {
-            val realmName = context.realm.name
-
-            jedisPool?.resource?.use { jedis ->
-                // IP 카운터 증가
-                incrementSingleCounter(jedis, buildRedisKey(KEY_TYPE_IP, realmName, clientIP), getIPWindow(context))
-
-                // 사용자 관련 카운터 증가
-                if (username != null) {
-                    incrementSingleCounter(
-                        jedis,
-                        buildRedisKey(KEY_TYPE_USER, realmName, username),
-                        getUserWindow(context)
-                    )
-                    val combinedKey = buildRedisKey(KEY_TYPE_COMBINED, realmName, "$clientIP:${hashUsername(username)}")
-                    incrementSingleCounter(jedis, combinedKey, getCombinedWindow(context))
-                }
-            }
-        } catch (e: Exception) {
-            println("Rate Limit 카운터 증가 오류: ${e.message}")
-        }
-
-    private fun incrementSingleCounter(
-        jedis: Jedis,
-        redisKey: String,
-        windowSeconds: Int,
-    ) {
-        val newCount = jedis.incr(redisKey)
-        if (newCount == 1L) {
-            jedis.expire(redisKey, windowSeconds.toLong())
-        } else {
-            // TTL 안전장치: jedis.expire() 호출이 실패하면
-            // Redis에 TTL 없는 키가 남음 (ttl = -1)
-            // 그 키는 영구히 존재하게 되어 사용자가 영원히 차단될 수 있음
-            val ttl = jedis.ttl(redisKey)
-            if (ttl == -1L) { // TTL이 설정되지 않은 경우
-                jedis.expire(redisKey, windowSeconds.toLong())
-            }
+            println("Token Bucket 오류: ${e.message}")
+            false // 장애 시 허용 (fail-open)
         }
     }
 
@@ -226,17 +286,17 @@ class RateLimitAuthenticator : Authenticator {
                     잠시 후 다시 시도해주세요.
                 </div>
                 <div class="retry-info">
-                    5분 후에 다시 시도할 수 있습니다.
+                    잠시 후 다시 시도할 수 있습니다.
                 </div>
             </div>
         </body>
         </html>
-    """.trimIndent()
+        """.trimIndent()
 
         val response = Response.status(429)
             .entity(htmlContent)
             .type(MediaType.TEXT_HTML)
-            .header("Retry-After", "300")
+            .header("Retry-After", "60")
             .build()
 
         context.challenge(response)
@@ -288,37 +348,50 @@ class RateLimitAuthenticator : Authenticator {
         return hashBytes.joinToString("") { "%02x".format(it) }.take(8)
     }
 
-    // 설정값 가져오기 메서드들
-    private fun getIPLimit(
+    // Token Bucket 설정값 가져오기 메서드들
+    private fun getIPCapacity(
         context: AuthenticationFlowContext,
     ): Int =
-        context.authenticatorConfig?.config?.get(IP_LIMIT_CONFIG)?.toIntOrNull() ?: DEFAULT_IP_LIMIT
+        context.authenticatorConfig?.config?.get(IP_CAPACITY_CONFIG)?.toIntOrNull() ?: DEFAULT_IP_CAPACITY
 
-    private fun getIPWindow(
+    private fun getIPRefillRate(
         context: AuthenticationFlowContext,
-    ): Int =
-        context.authenticatorConfig?.config?.get(IP_WINDOW_CONFIG)?.toIntOrNull() ?: DEFAULT_IP_WINDOW
+    ): Double =
+        context.authenticatorConfig?.config?.get(IP_REFILL_RATE_CONFIG)?.toDoubleOrNull() ?: DEFAULT_IP_REFILL_RATE
 
-    private fun getUserLimit(
+    private fun getIPTTL(
         context: AuthenticationFlowContext,
     ): Int =
-        context.authenticatorConfig?.config?.get(USER_LIMIT_CONFIG)?.toIntOrNull() ?: DEFAULT_USER_LIMIT
+        context.authenticatorConfig?.config?.get(IP_TTL_CONFIG)?.toIntOrNull() ?: DEFAULT_IP_TTL
 
-    private fun getUserWindow(
+    private fun getUserCapacity(
         context: AuthenticationFlowContext,
     ): Int =
-        context.authenticatorConfig?.config?.get(USER_WINDOW_CONFIG)?.toIntOrNull() ?: DEFAULT_USER_WINDOW
+        context.authenticatorConfig?.config?.get(USER_CAPACITY_CONFIG)?.toIntOrNull() ?: DEFAULT_USER_CAPACITY
 
-    private fun getCombinedLimit(
+    private fun getUserRefillRate(
         context: AuthenticationFlowContext,
-    ): Int =
-        context.authenticatorConfig?.config?.get(COMBINED_LIMIT_CONFIG)?.toIntOrNull() ?: DEFAULT_COMBINED_LIMIT
+    ): Double =
+        context.authenticatorConfig?.config?.get(USER_REFILL_RATE_CONFIG)?.toDoubleOrNull() ?: DEFAULT_USER_REFILL_RATE
 
-    private fun getCombinedWindow(
+    private fun getUserTTL(
         context: AuthenticationFlowContext,
     ): Int =
-        context.authenticatorConfig?.config?.get(COMBINED_WINDOW_CONFIG)?.toIntOrNull()
-            ?: DEFAULT_COMBINED_WINDOW
+        context.authenticatorConfig?.config?.get(USER_TTL_CONFIG)?.toIntOrNull() ?: DEFAULT_USER_TTL
+
+    private fun getCombinedCapacity(
+        context: AuthenticationFlowContext,
+    ): Int =
+        context.authenticatorConfig?.config?.get(COMBINED_CAPACITY_CONFIG)?.toIntOrNull() ?: DEFAULT_COMBINED_CAPACITY
+
+    private fun getCombinedRefillRate(
+        context: AuthenticationFlowContext,
+    ): Double =
+        context.authenticatorConfig?.config?.get(COMBINED_REFILL_RATE_CONFIG)?.toDoubleOrNull()
+            ?: DEFAULT_COMBINED_REFILL_RATE
+
+    private fun getCombinedTTL(context: AuthenticationFlowContext): Int =
+        context.authenticatorConfig?.config?.get(COMBINED_TTL_CONFIG)?.toIntOrNull() ?: DEFAULT_COMBINED_TTL
 
     override fun requiresUser(
     ): Boolean =

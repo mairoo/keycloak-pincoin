@@ -13,8 +13,8 @@ import org.keycloak.provider.ProviderConfigurationBuilder
 class RateLimitAuthenticatorFactory : AuthenticatorFactory, ConfigurableAuthenticatorFactory {
     companion object {
         const val PROVIDER_ID = "rate-limit-authenticator"
-        const val DISPLAY_TYPE = "Rate Limit"
-        const val HELP_TEXT = "Redis 기반 브루트포스 공격 방지를 위한 Rate Limit 인증기"
+        const val DISPLAY_TYPE = "Token Bucket Rate Limit"
+        const val HELP_TEXT = "Redis 기반 Token Bucket 방식의 Rate Limit"
         const val REFERENCE_CATEGORY = "security"
     }
 
@@ -53,53 +53,77 @@ class RateLimitAuthenticatorFactory : AuthenticatorFactory, ConfigurableAuthenti
         .defaultValue("0")
         .add()
 
-        // IP 기준 Rate Limit 설정
+        // IP 기준 Token Bucket 설정
         .property()
-        .name(RateLimitAuthenticator.IP_LIMIT_CONFIG)
-        .label("IP 제한 횟수")
-        .helpText("IP 주소별 최대 시도 횟수")
+        .name(RateLimitAuthenticator.IP_CAPACITY_CONFIG)
+        .label("IP 버킷 크기")
+        .helpText("IP별 최대 burst 허용량 (동시 요청 수)")
         .type(ProviderConfigProperty.STRING_TYPE)
-        .defaultValue("100")
+        .defaultValue("30")
         .add()
 
         .property()
-        .name(RateLimitAuthenticator.IP_WINDOW_CONFIG)
-        .label("IP 제한 시간(초)")
-        .helpText("IP 주소별 제한 시간 윈도우(초)")
+        .name(RateLimitAuthenticator.IP_REFILL_RATE_CONFIG)
+        .label("IP 토큰 보충률")
+        .helpText("IP별 초당 토큰 보충 개수 (1.0 = 초당 1개)")
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .defaultValue("1.0")
+        .add()
+
+        .property()
+        .name(RateLimitAuthenticator.IP_TTL_CONFIG)
+        .label("IP 데이터 보관시간(초)")
+        .helpText("IP 관련 Redis 데이터 보관 시간")
         .type(ProviderConfigProperty.STRING_TYPE)
         .defaultValue("3600")
         .add()
 
-        // 사용자 기준 Rate Limit 설정
+        // 사용자 기준 Token Bucket 설정
         .property()
-        .name(RateLimitAuthenticator.USER_LIMIT_CONFIG)
-        .label("사용자 제한 횟수")
-        .helpText("사용자별 최대 시도 횟수")
+        .name(RateLimitAuthenticator.USER_CAPACITY_CONFIG)
+        .label("사용자 버킷 크기")
+        .helpText("사용자별 최대 burst 허용량")
         .type(ProviderConfigProperty.STRING_TYPE)
         .defaultValue("5")
         .add()
 
         .property()
-        .name(RateLimitAuthenticator.USER_WINDOW_CONFIG)
-        .label("사용자 제한 시간(초)")
-        .helpText("사용자별 제한 시간 윈도우(초)")
+        .name(RateLimitAuthenticator.USER_REFILL_RATE_CONFIG)
+        .label("사용자 토큰 보충률")
+        .helpText("사용자별 초당 토큰 보충 개수 (0.0167 = 분당 1개)")
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .defaultValue("0.0167")
+        .add()
+
+        .property()
+        .name(RateLimitAuthenticator.USER_TTL_CONFIG)
+        .label("사용자 데이터 보관시간(초)")
+        .helpText("사용자 관련 Redis 데이터 보관 시간")
         .type(ProviderConfigProperty.STRING_TYPE)
         .defaultValue("900")
         .add()
 
-        // 조합 기준 Rate Limit 설정
+        // 조합 기준 Token Bucket 설정
         .property()
-        .name(RateLimitAuthenticator.COMBINED_LIMIT_CONFIG)
-        .label("조합 제한 횟수")
-        .helpText("IP+사용자 조합별 최대 시도 횟수")
+        .name(RateLimitAuthenticator.COMBINED_CAPACITY_CONFIG)
+        .label("조합 버킷 크기")
+        .helpText("IP+사용자 조합별 최대 burst 허용량")
         .type(ProviderConfigProperty.STRING_TYPE)
-        .defaultValue("10")
+        .defaultValue("3")
         .add()
 
         .property()
-        .name(RateLimitAuthenticator.COMBINED_WINDOW_CONFIG)
-        .label("조합 제한 시간(초)")
-        .helpText("IP+사용자 조합별 제한 시간 윈도우(초)")
+        .name(RateLimitAuthenticator.COMBINED_REFILL_RATE_CONFIG)
+        .label("조합 토큰 보충률")
+        .helpText("조합별 초당 토큰 보충 개수 (0.0033 = 5분당 1개)")
+        .type(ProviderConfigProperty.STRING_TYPE)
+        .defaultValue("0.0033")
+        .add()
+
+        .property()
+        .name(RateLimitAuthenticator.COMBINED_TTL_CONFIG)
+        .label("조합 데이터 보관시간(초)")
+        .helpText("조합 관련 Redis 데이터 보관 시간")
         .type(ProviderConfigProperty.STRING_TYPE)
         .defaultValue("300")
         .add()
