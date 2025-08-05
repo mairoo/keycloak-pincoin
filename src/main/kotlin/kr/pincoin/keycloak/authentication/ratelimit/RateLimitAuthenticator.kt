@@ -1,5 +1,7 @@
 package kr.pincoin.keycloak.authentication.ratelimit
 
+import jakarta.ws.rs.core.MediaType
+import jakarta.ws.rs.core.Response
 import org.keycloak.authentication.AuthenticationFlowContext
 import org.keycloak.authentication.Authenticator
 import org.keycloak.models.KeycloakSession
@@ -180,8 +182,44 @@ class RateLimitAuthenticator : Authenticator {
     }
 
     private fun handleBlocked(context: AuthenticationFlowContext) {
-        context.event.error(org.keycloak.events.Errors.USER_TEMPORARILY_DISABLED)
-        context.failure(org.keycloak.authentication.AuthenticationFlowError.INVALID_USER)
+        context.event.error(org.keycloak.events.Errors.NOT_ALLOWED)
+
+        val htmlContent = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>요청 제한</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; }
+                .error-container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+                .error-title { color: #d32f2f; font-size: 24px; margin-bottom: 20px; }
+                .error-message { color: #666; font-size: 16px; line-height: 1.5; }
+                .retry-info { margin-top: 20px; font-size: 14px; color: #888; }
+            </style>
+        </head>
+        <body>
+            <div class="error-container">
+                <div class="error-title">요청 제한 초과</div>
+                <div class="error-message">
+                    요청이 너무 많습니다.<br>
+                    잠시 후 다시 시도해주세요.
+                </div>
+                <div class="retry-info">
+                    5분 후에 다시 시도할 수 있습니다.
+                </div>
+            </div>
+        </body>
+        </html>
+    """.trimIndent()
+
+        val response = Response.status(429)
+            .entity(htmlContent)
+            .type(MediaType.TEXT_HTML)
+            .header("Retry-After", "300")
+            .build()
+
+        context.challenge(response)
     }
 
     private fun getClientIP(context: AuthenticationFlowContext): String? {
