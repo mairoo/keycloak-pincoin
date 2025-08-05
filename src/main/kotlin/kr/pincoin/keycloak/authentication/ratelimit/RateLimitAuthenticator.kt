@@ -172,16 +172,16 @@ class RateLimitAuthenticator : Authenticator {
     }
 
     private fun handleBlocked(context: AuthenticationFlowContext) {
-        context.getEvent().error(org.keycloak.events.Errors.USER_TEMPORARILY_DISABLED)
+        context.event.error(org.keycloak.events.Errors.USER_TEMPORARILY_DISABLED)
         context.failure(org.keycloak.authentication.AuthenticationFlowError.INVALID_USER)
     }
 
     private fun getClientIP(context: AuthenticationFlowContext): String? {
         val request = context.httpRequest
 
-        return request.getHttpHeaders().getHeaderString("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
-            ?: request.getHttpHeaders().getHeaderString("X-Real-IP")
-            ?: request.getHttpHeaders().getHeaderString("X-Forwarded-Host")
+        return request.httpHeaders.getHeaderString("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
+            ?: request.httpHeaders.getHeaderString("X-Real-IP")
+            ?: request.httpHeaders.getHeaderString("X-Forwarded-Host")
             ?: context.connection.remoteAddr
     }
 
