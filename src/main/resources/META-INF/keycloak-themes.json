@@ -3,7 +3,8 @@
     {
       "name": "pincoin",
       "types": [
-        "login"
+        "login",
+        "email"
       ]
     }
   ]
